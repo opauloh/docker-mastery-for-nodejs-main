@@ -57,4 +57,12 @@ this command will do everything it to stop:
 - stop and delete network / container(s) (it preserves data)
 - use `-v` to delete volumes (data), so you can use `docker-compose down -v`, to do a clean uninstall of everything including data
 
-### docker-compose ...
+### docker-compose CLI basics
+
+- Commands takes "service" name as option (not the container or image name), it's just for building images and not messing around with `up` or `down`
+- `docker-compose build` - just build/rebuild image(s)
+- `docker-compose stop` - just stop containers, don't delete
+- `docker-compose ps` - list services, different from `docker ps`, it shows stopped and running containers, and in an easier format, will show ports open, and which errors might have happenend if a container has stopped
+- `docker-compose push` - push all the images in your compose file up to the registry
+- `docker-compose logs` - see all logs for all of the containers running or pass the name of the service to filter
+- `docker-compose exec` - Execute commands inside running containers
