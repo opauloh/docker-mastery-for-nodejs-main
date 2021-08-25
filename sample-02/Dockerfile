@@ -1,5 +1,8 @@
 FROM node:10-alpine
 
+# we want curl to be installed on the image
+RUN apk add --update curl
+
 EXPOSE 3000
 
 WORKDIR /usr/src/app
