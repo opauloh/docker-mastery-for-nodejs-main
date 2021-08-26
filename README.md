@@ -4,6 +4,15 @@ This repo is for use in my Udemy Course https://www.bretfisher.com/docker-master
 
 # My Notes
 
+## [Alpine](https://wiki.alpinelinux.org/wiki/Alpine_Linux_package_management)
+
+Because Alpine Linux is designed to run from RAM, package management involves two phases:
+
+- Installing / Upgrading / Deleting packages on a running system.
+- Restoring a system to a previously configured state (e.g. after reboot), including all previously installed packages and locally modified configuration files. (RAM-Based Installs Only)
+- `apk` is the tool used to install, upgrade, or delete software on a running system.
+- `lbu` is the tool used to capture the data necessary to restore a system to a previously configured state.
+
 ## Docker Compose
 
 - `docker-compose` CLI is a substitute for docker CLI
@@ -33,7 +42,8 @@ services: # services is one or more container based on a single image
       - "3000:3000"
 ```
 
-- **Compose YAML v2 vs v3** - v2 focus on single-node, dev/test and v3 focus on multi-node and orchestration, so if not using Swarm, Kubernetes, prefer v2
+- **Compose YAML v2 vs v3** - v2 focus on single-node, dev/test and v3 focus on multi-node and orchestration, so if not using Swarm, Kubernetes, prefer v2 - [Reference](https://github.com/docker/docker.github.io/pull/7593)
+- [Online YAML Validator](https://codebeautify.org/yaml-validator)
 
 ### Installing docker-compose on Linux
 
@@ -53,10 +63,16 @@ this command will do everything it need to make the docker image live, it includ
 
 ### docker-compose down
 
-this command will do everything it to stop:
+this command will do everything to stop:
 
 - stop and delete network / container(s) (it preserves data)
 - use `-v` to delete volumes (data), so you can use `docker-compose down -v`, to do a clean uninstall of everything including data
+- it won't delete the images by default, you have to use `docker-compose down --rmi` to do so. Check for `docker-compose down --help` for more commands
+
+### docker-compose build
+
+- just build/rebuild image(s)
+- you can use `docker-compose build --no-cache` to build a image from scratch (don't need technically to use `docker-compose down --rmi`)
 
 ### docker-compose CLI basics
 
