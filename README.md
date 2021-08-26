@@ -92,3 +92,18 @@ this command will do everything to stop:
 # we want curl to be installed on the image
 RUN apk add --update curl
 ```
+
+### Ports
+
+How ports publishing works:
+
+- The left side is what the host, your machine will use.
+- The right side is what is used in the container.
+
+So, given a node application who start a express server in port 3000, you can:
+
+```yml
+"3000:3000" # You can access https://localhost:3000 from your browser and see the application
+"8080:3000" # You can access https://localhost:8080 from your browser and see the application
+"3000:8080" # You will get error, because the docker is running anything on port 8080
+```
