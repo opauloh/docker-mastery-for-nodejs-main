@@ -115,6 +115,31 @@ So, given a node application who start a express server in port 3000, you can:
 ### FROM
 
 - This is the raw machine you will be using, usually it will come with `node` and `npm` installed, or even `yarn`, so prefer machines that comes with your core application installed.
+- Tip: Prefer even versions of `node`, because even are stable releases and odd are more experimental, all LTS (Long Term Support) versions are even. So, don't use :latest tag.
+- Check the [Releases](https://nodejs.org/en/about/releases/) page for the latest LTS Version
+- On [Docker Hub](https://hub.docker.com/_/node) all oficial images use `Debian` as their base image, which means we get `apt get` package manager, core utilities like `openssl`, and `bash` shell. These `Debian` images can be big for convenience, so focus on `Alpine` for most new projects, and just use `Debian` if migrating from a pre-container world, and then consider moving to `Alpine` later. Because `Alpine` is a very small base image, that has only the minimal tools for `node` to get started.
+- Caveats: `Debian` distributions will have more base OS packages that might be needed for some `npm` packages depencencies, with `Alpine` we need to make sure its supports those packages, be aware about edge cases where we won't have support in `Alpine` Package Manager
+
+![](screenshots/screenshot-20210827095958.png)
+
+- All this images are what we can specify on the `FROM` line, so we can for example:
+
+```Dockerfile
+FROM node:16
+# Because there is a single 16 version
+
+FROM node:16-alpine
+# Chooose alpine for a much smaller variant, (About 8x less)
+
+# Or
+FROM node:16-alpine3.11
+# ...and so on
+```
+
+- Also you will notice some `slim`, versions, they are smaller versions of debian, it's not recommend to use it, unless you have a high reason to do so, because that's what `Alpine` is for, and it's the industry standard for smaller images. Altough, if you can't use `Alpine`, might worth to check for `slim` versions.
+- `onbuild` images are old, don't use it, because are problematic due to the fact your `Dockerfile` will execute commands from the image's `Dockerfile`, before executing from yours.
+- `Alpine` is more secure focuses due to the fact there are less out-of-the-box, that means less pottential risk, but be aware that is falls on [CVE (Common Vulnerability) scanning](https://kubedex.com/follow-up-container-scanning-comparison/)
+- Worth noting that `Debian`/`Ubuntu` images are not that huge, it's about `~100MB`, so if the convenience worth, go for it and don't worry with space.
 
 ### COPY
 
