@@ -107,3 +107,38 @@ So, given a node application who start a express server in port 3000, you can:
 "8080:3000" # You can access https://localhost:8080 from your browser and see the application
 "3000:8080" # You will get error, because the docker is running anything on port 8080
 ```
+
+## Dockerfile
+
+- [Best practices](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/)
+
+### FROM
+
+- This is the raw machine you will be using, usually it will come with `node` and `npm` installed, or even `yarn`, so prefer machines that comes with your core application installed.
+
+### COPY
+
+- most of times you will use `COPY`, it copies from one place to another,
+
+### ADD
+
+- `ADD` does many stuff, like download files from the internet, untar any files it sees in local directory, never use `ADD` for copying files (it can do it, but you shouldn't), for copying use `COPY` instead!
+
+### WORKDIR
+
+- You shoudn't use `cd` or `mkdir` inside `Dockerfile`, instead use `WORKDIR` that does both.
+- it will make the directory if it's not there
+
+_One caveat, is that if you need specific permissions on a directory when it's created mkdir might be better_
+
+### CMD
+
+- Use `node` to run your commands, not `npm`:
+
+```Dockerfile
+CMD ["node", "./bin/www"]
+```
+
+- One of the reason, i's because `npm` requires another application to run, that means, if you run with `npm`, instead of having just `node` running, you will have `npm` running, and `node` as a subprocess, and that adds complexity and an unnecessary layer
+- Other reason, is not literal on what is happening, it's better when `Dockerfile` tells exactly what is happening when it launches, and when it's something like `npm start` that means `npm` will arbitrary call another command, so is not literal on it's intention, so it's harder to debug.
+- Other reason, `npm` doesn't work well as an init process, that's because in Linux and containers, there's always a main process that everything launches from, so, if we start something that launches something else, we get sort of tree structures, and one main problem would be handle the signal termination. `npm` does not pass signals correctly to `node`, so, it tends to just improperly shut down the container. In this case, keeping `node` as the main process is simpler and allows to use **Direct Singnaling**.
