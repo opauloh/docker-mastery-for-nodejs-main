@@ -179,3 +179,39 @@ _Follow this [CentOS Dockerfile](centos-node/Dockerfile) for reference_
 - Note that on official images, the apps will be running as root in the container (root in container is not the same as host, because containers are restricted from the rest of the system).
 - But even they not being the same, we want to reduce security risk inside containers, a way of doing this is run apps in the container as a non root user. So if someone manages to break trough the app, they wouldn't even be root in the container, just a standard user account with very little privileges.
 - A good news is that the official node image has a Node user built in, it's just not enabled by default, that's because of the various errors that can occur related to permission, commands like `apt-get` or `yum`, or `npm install -g` , so you need to consider that. Advice is always try to enable least privilege, so you will want to enable the least privileged user after the `apt`/`apk` commands or `npm i -g`, and before the `npm i`.
+- Problems that might happen when using node user instead of root, is if your application expect to write or install while your app is running.
+- Be aware that only `RUN`, `CMD` and `ENTRYPOINT` commands will behave as the `node` user, everything else will be as `root`, so you might found problems on directory and file specific commands like `WORKDIR`, that's why is important to remember to apply permission to the node user when creating directories.
+- Once we elect the node user, any `docker compose exec` will use the node user by default, if we need to change that, we can use the -u root with any exec command. Useful for adding packages without denying access.
+- [Diferences between chmod and chwon](https://www.unixtutorial.org/difference-between-chmod-and-chown/)
+- [USER reference](https://docs.docker.com/engine/reference/builder/#user)
+- [COPY reference](https://docs.docker.com/engine/reference/builder/#copy)
+
+```Dockerfile
+FROM node:10-slim
+
+EXPOSE 3000
+
+WORKDIR /node
+
+COPY package*.json ./
+
+# Since Docker has already created the Node user in the upstream from image, we just need to enable it with this command in Dockerfile:
+USER node
+
+# Creating directory and setting permission to the node user and group, so we can do things like `run npm install`, write cache files, etc...
+RUN mkdir app && chown -R node:node .
+
+# Now we can install as the node user
+RUN npm install && npm cache clean --force
+
+WORKDIR /node/app
+
+# We could do:
+# RUN chown -R node:node .
+# instead, but the chown command adds another layer to the image without deleting the previous layers.
+# That means, that the final container image contains both layers. Thus, the size of the container adds the size of both folders: the original working directory for the root user, and the second working directory with permissions for the normal user.
+COPY --chown=node:node . .
+# when using the --chown flag, it avoids the extra layer, so it will result in smaller size of the image.
+
+CMD ["node", "app.js"]
+```
