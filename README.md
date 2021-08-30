@@ -167,3 +167,15 @@ CMD ["node", "./bin/www"]
 - One of the reason, i's because `npm` requires another application to run, that means, if you run with `npm`, instead of having just `node` running, you will have `npm` running, and `node` as a subprocess, and that adds complexity and an unnecessary layer
 - Other reason, is not literal on what is happening, it's better when `Dockerfile` tells exactly what is happening when it launches, and when it's something like `npm start` that means `npm` will arbitrary call another command, so is not literal on it's intention, so it's harder to debug.
 - Other reason, `npm` doesn't work well as an init process, that's because in Linux and containers, there's always a main process that everything launches from, so, if we start something that launches something else, we get sort of tree structures, and one main problem would be handle the signal termination. `npm` does not pass signals correctly to `node`, so, it tends to just improperly shut down the container. In this case, keeping `node` as the main process is simpler and allows to use **Direct Singnaling**.
+
+### Dockerfile for a custom image
+
+- We can provide custom node images for OS that are not the officials, like Debian or Alpine, for this we can search docker hub for other images we want, i.e Centos, Ubuntu, Red Hat, etc...
+
+_Follow this [CentOS Dockerfile](centos-node/Dockerfile) for reference_
+
+### User
+
+- Note that on official images, the apps will be running as root in the container (root in container is not the same as host, because containers are restricted from the rest of the system).
+- But even they not being the same, we want to reduce security risk inside containers, a way of doing this is run apps in the container as a non root user. So if someone manages to break trough the app, they wouldn't even be root in the container, just a standard user account with very little privileges.
+- A good news is that the official node image has a Node user built in, it's just not enabled by default, that's because of the various errors that can occur related to permission, commands like `apt-get` or `yum`, or `npm install -g` , so you need to consider that. Advice is always try to enable least privilege, so you will want to enable the least privileged user after the `apt`/`apk` commands or `npm i -g`, and before the `npm i`.
