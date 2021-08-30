@@ -111,6 +111,8 @@ So, given a node application who start a express server in port 3000, you can:
 ## Dockerfile
 
 - [Best practices](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/)
+- Remember that line order is important, because it builds naturally from top to bottom.
+- Also remember, if you have layers that don't change often, let them at the top of the file, otherwise, it won't benefit of caching.
 
 ### FROM
 
@@ -140,6 +142,7 @@ FROM node:16-alpine3.11
 - `onbuild` images are old, don't use it, because are problematic due to the fact your `Dockerfile` will execute commands from the image's `Dockerfile`, before executing from yours.
 - `Alpine` is more secure focuses due to the fact there are less out-of-the-box, that means less pottential risk, but be aware that is falls on [CVE (Common Vulnerability) scanning](https://kubedex.com/follow-up-container-scanning-comparison/)
 - Worth noting that `Debian`/`Ubuntu` images are not that huge, it's about `~100MB`, so if the convenience worth, go for it and don't worry with space.
+- A tip for production is to use patch images, so you guarantee they will work as expected. i.e. `node:10.15.3-alpine3.11-slim`
 
 ### COPY
 
@@ -215,3 +218,14 @@ COPY --chown=node:node . .
 
 CMD ["node", "app.js"]
 ```
+
+### How cache busting works
+
+- Whenever a line is changed on the Dockerfile, that line, and the line below it, will have to be rebuilt. That's the normal behaviour, but it's good to avoid it whenever is not necessary.
+- Like for example if Dockerfile expose this port, and it never change, put them at the top of the file, so it will be cached.
+
+```Dockerfile
+EXPOSE 3000
+```
+
+-
