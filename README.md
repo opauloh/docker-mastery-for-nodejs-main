@@ -113,6 +113,7 @@ So, given a node application who start a express server in port 3000, you can:
 - [Best practices](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/)
 - Remember that line order is important, because it builds naturally from top to bottom.
 - Also remember, if you have layers that don't change often, let them at the top of the file, otherwise, it won't benefit of caching.
+- [Dockerfile reference](https://docs.docker.com/engine/reference/builder/#dockerfile-file)
 
 ### FROM
 
@@ -228,4 +229,132 @@ CMD ["node", "app.js"]
 EXPOSE 3000
 ```
 
--
+### Optimization
+
+- Avoid copying all the source files before npm install, because any time a source file change, it will bust the run line for npm install and have to rerun that line every single time it copies the source files. And we definitely don't want that.
+
+```Dockerfile
+FROM node:10-alpine
+EXPOSE 3000
+WORKDIR /usr/src/app
+
+# Avoid that:
+COPY . .
+RUN npm install && npm cache clean --force
+
+CMD ["node", "./bin/www"]
+```
+
+- To avoid that we usually just have a copy for package.json and package-lock.json, and then we run npm install, and then we copy in . . (that means everything else). This will save a lot of time.
+
+### Tips
+
+- We can copy `package-lock.json` with `*` which means it will copy if is there, but won't fail if it's not there.
+- This is good in case `package-lock.json` is auto generated, and we don't want to copy it.
+
+```Dockerfile
+# without the * it would fail the build in case it's doesn't exist
+COPY package.json package-lock.json* ./
+```
+
+- Keep only one `apt-get` or `yum` per Dockerfile, and put it higher in the Dockerfile. Also remember to pin versions of packages you're installing.
+- Also keep all installs together, or cache busting will be against you.
+
+```Dockerfile
+FROM node:10-alpine
+EXPOSE 3000
+
+RUN apt-get update && apt-get install curl
+
+WORKDIR /usr/src/app
+
+COPY package.json package-lock.json* ./
+
+RUN npm install && npm cache clean --force
+
+# Don't do this, the correct would be to put at the top with the curl install
+# Because if we do that, and then change anything in package.json, it will bust only the cache for httping, but without apt-get being updated, because the lines before were cache busted.
+RUN apt-get install httping
+
+COPY . .
+
+CMD ["node", "./bin/www"]
+```
+
+### Node process management
+
+- In Docker containers we don't need to use tools for managing processes, like `nodemon`, `forever`, `pm2`, etc... Docker is gonna do it for us.
+  -- Altough, we can use nodemon for dev as file watcher.
+- Docker can manage the whole process, it can start, stop, pause, restart and health check, to restart the process if is not healthy.
+- Docker manages multiple "replicas" of the same process, so if we have a process that is running, and we restart it, it will restart all the replicas.
+
+### Process Identifier - PID
+
+- PID 1 is the first process in a system (or container) (AKA init)
+- Init process has two jobs: reap zombie processes and pass signals to sub-processes (like shutdown).
+- Zombie process is not a issue with node, usually we're just going to have one node process and subprocesses.
+- Docker uses Linux signals to stop app (SIGINT, SIGTERM, SIGKILL) and to restart it (SIGHUP).
+  -- We never want to deal with SIGKILL, because it's killing the container, without having a chance to stop it or respond.
+  -- SIGINT is used when we ctrl+c
+  -- SIGTERM is used when we do a docker container stop
+  -- The problem: `npm` does not handle this signals at all, that's why we should use `node` instead of `npm`, it doesn't handle by default but we can add code to handle it.
+- Docker provides a init `PID 1` replacement option (it's called [tini](https://github.com/krallin/tini)), but this is a sort of backup. Just pass `--init` flag option to `docker run`
+
+### Proper Node shutdown options
+
+- Temp: use --init to fix ctrl+c issue for now. (it will use tini to shutdown the process)
+  -- Use it if you are attempting to stop a container but it's taking about 10 seconds to stop, so it's because Docker is not being able to properly shutdown the process. (It's using a default of waiting for 10 seconds and then killing it)
+
+```bash
+docker run --init -d nodeapp
+```
+
+- Workaround: add tini to the image (Use only if can't really change the app, but need a proper shutdown solution)
+
+```Dockerfile
+# That's in case the app is not handling shutdown correctly, and we can't make changes in the code, we can use tini to shutdown the process.
+# So it won't wait 10 seconds and KILL our app.
+# Add tini to your Dockerfile, then use it in CMD
+RUN apk add --no-cache tini
+# Trick here  is to use entrypoint instead of cmd, that's because entrypoint will run first and wrap the cmd
+# It's kind of what Docker is doing in the background if we do --init from command line.
+# But we use that so people don't have to use --init, and maybe forgot to use that option.
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "./bin/www"]
+```
+
+- Production: make the app capture SIGINT for proper exit (Graceful shutdown)
+
+```js
+// This only shutdowns the app, is not handling connections nor waiting for jobs to finish.
+// quit on ctrl-c when running docker in terminal
+process.on("SIGINT", function onSigint() {
+  console.info(
+    "Got SIGINT (aka ctrl-c in docker). Graceful shutdown ",
+    new Date().toISOString()
+  );
+  shutdown();
+});
+
+// quit properly on docker stop
+process.on("SIGTERM", function onSigterm() {
+  console.info(
+    "Got SIGTERM (docker container stop). Graceful shutdown ",
+    new Date().toISOString()
+  );
+  shutdown();
+});
+
+// shut down server
+function shutdown() {
+  // NOTE: server.close is for express based apps
+  // If using hapi, use `server.stop`
+  server.close(function onServerClosed(err) {
+    if (err) {
+      console.error(err);
+      process.exitCode = 1;
+    }
+    process.exit();
+  });
+}
+```
