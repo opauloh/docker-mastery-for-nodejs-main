@@ -115,6 +115,8 @@ So, given a node application who start a express server in port 3000, you can:
 - Also remember, if you have layers that don't change often, let them at the top of the file, otherwise, it won't benefit of caching.
 - [Dockerfile reference](https://docs.docker.com/engine/reference/builder/#dockerfile-file)
 
+_Follow this [Assignment](assignment-dockerfile) for a reference on building Dockerfile without docker-compose_
+
 ### FROM
 
 - This is the raw machine you will be using, usually it will come with `node` and `npm` installed, or even `yarn`, so prefer machines that comes with your core application installed.
