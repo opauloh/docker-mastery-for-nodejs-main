@@ -8,26 +8,35 @@ FROM node:10-slim as prod
 ENV NODE_ENV=production
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm install --production && npm cache clean --force
-COPY . .
+COPY package.json package-lock.json* /app/
+RUN npm install --only=production && npm cache clean --force
+# npm 7:
+# RUN npm install --production && npm cache clean --force
+COPY . /app/
 CMD ["node", "./bin/www"]
 
 FROM prod as dev
 ENV NODE_ENV=development
-RUN npm install --only=dev
-COPY . .
+RUN npm install --production=false
+# npm 7:
+# RUN npm install --only=development
 CMD ["npm", "run", "dev"]
+# OR:
+# CMD ["../node_modules/nodemon/bin/nodemon.js", "./bin/www", "--inspect=0.0.0.0:9229"]
 
 FROM dev as test
 ENV NODE_ENV=development
-COPY . .
 CMD ["npm", "test"]
+# Alternatively you can do:
+# RUN npm test
+# So, if it successfully build your CI will pass, ideally should be before the CMD command of prod
 
 # to Build prod:
 # docker build -t assignment-multi:prod --target prod .
 # Running:
 # docker run --init -p 3001:3000 -d assignment-multi:prod
+# To build and run:
+# docker build -t assignment-multi:prod --target prod . && docker run --init -p 3001:3000 -d assignment-multi:prod
 
 # to Build dev:
 # docker build -t assignment-multi:dev --target dev .

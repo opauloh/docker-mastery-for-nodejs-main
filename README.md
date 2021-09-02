@@ -248,6 +248,7 @@ CMD ["node", "./bin/www"]
 ```
 
 - To avoid that we usually just have a copy for package.json and package-lock.json, and then we run npm install, and then we copy in . . (that means everything else). This will save a lot of time.
+- `npm install --production` will install only the production dependencies, and not the dev dependencies.
 
 ### Tips
 
