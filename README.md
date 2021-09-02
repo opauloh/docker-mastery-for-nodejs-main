@@ -369,3 +369,38 @@ function shutdown() {
 
 - Example of initializing with Docker's default tini (--init):
   ![](screenshots/screenshot-20210902110309.png)
+
+## MultiStage Dockerfile
+
+```Dockerfile
+# Create an alias from node to prod, so we can refer to it in the same Dockerfile using prod
+FROM node as prod
+
+# Basic node npm stuff
+ENV NODE_ENV=production
+COPY package.json package-lock.json* ./
+RUN npm install && npm cache clean --force
+COPY . .
+CMD ["node", "./bin/www"]
+
+# Creating another image based on the first one (prod)
+# We can have as many as FROM as we want, and they can depend of each other be unrelated.
+FROM prod as dev
+ENV NODE_ENV=development
+# Changing cmd to development environment
+CMD ["nodemon", "./bin/www", "--inspect=0.0.0.0:9229"]
+```
+
+- To build dev image from dev stage:
+
+```bash
+docker build -t my-app .
+```
+
+- To build prod image from prod stage:
+
+```bash
+docker build -t my-app:prod --target prod .
+```
+
+_The end result would be two images, my-app that is the dev image, and a my-app with tag of prod, only with the production part_
