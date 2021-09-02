@@ -370,7 +370,7 @@ function shutdown() {
 - Example of initializing with Docker's default tini (--init):
   ![](screenshots/screenshot-20210902110309.png)
 
-## MultiStage Dockerfile
+## [MultiStage](https://docs.docker.com/develop/develop-images/multistage-build/) Dockerfile
 
 ```Dockerfile
 # Create an alias from node to prod, so we can refer to it in the same Dockerfile using prod
@@ -404,3 +404,12 @@ docker build -t my-app:prod --target prod .
 ```
 
 _The end result would be two images, my-app that is the dev image, and a my-app with tag of prod, only with the production part_
+
+### More scenarios for multi-stage Dockerfile
+
+- Add a test stage that runs `npm test`
+- Have CI build --target test stage before building prod
+- Add `npm install --only=development` to dev stage
+- COPY only once, don't COPY code into dev stage
+- [Advanced multi stage patterns](https://medium.com/@tonistiigi/advanced-multi-stage-build-patterns-6f741b852fae)
+- [Multi Stage Assignment](sample-multi-stage/Dockerfile)
