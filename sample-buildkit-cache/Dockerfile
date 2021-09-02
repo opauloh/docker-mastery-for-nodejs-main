@@ -3,7 +3,7 @@ FROM node:alpine
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY package.json package-lock.json* ./
 
 RUN --mount=type=cache,target=/root/.npm/_cacache npm install
 

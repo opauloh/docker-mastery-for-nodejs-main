@@ -414,3 +414,50 @@ _The end result would be two images, my-app that is the dev image, and a my-app 
 - COPY only once, don't COPY code into dev stage
 - [Advanced multi stage patterns](https://medium.com/@tonistiigi/advanced-multi-stage-build-patterns-6f741b852fae)
 - [Multi Stage Assignment](sample-multi-stage/Dockerfile)
+
+## Buildkit
+
+BuildKit, it's a new way to build your images, and a replacement "build engine" that is now an optional feature with quite a few benefits over traditional docker build commands.
+
+- https://github.com/moby/buildkit
+- https://www.youtube.com/watch?v=kkpQ_UZn2uo&ab_channel=Docker
+- https://medium.com/@tonistiigi/advanced-multi-stage-build-patterns-6f741b852fae
+- https://www.udemy.com/course/docker-mastery-for-nodejs/learn/lecture/13236858#overview
+
+### Using BuildKit to Enable SSH Keys for Private NPM Repositories
+
+If your Node project has private git repos for node modules, it'll need a particular setup so SSH can be used when building the image.
+
+The previous solution before BuildKit was:
+
+- Use multi-stage builds.
+- COPY a decrypted-private-key in to an early stage where npm install is run.
+- COPY the node_modules from that stage to a new image that doesn't include the key.
+
+That solution worked if you're ok with having the ssh key stored in your local docker engine images, but it wasn't ideal, and didn't work with encrypted ssh keys that required a passphrase.
+
+The new way is to use BuildKit with the ssh-agent feature, and is much more secure:
+
+- Setup ssh-agent and your keys on the host OS like normal.
+- Add this as the first line in your Dockerfile: # syntax = docker/dockerfile:experimental
+- Start your Dockerfile npm install line with this: RUN --mount=type=ssh
+- Run docker build with --ssh default as an additional option to enable the feature for that build.
+
+_Remember you can't yet use this with docker-compose build, so you'd need to build your images manually with docker build and then use that image name in your docker-compose.yml_
+
+- [Sample](sample-buildkit-ssh/Dockerfile)
+
+### Using BuildKit to Reuse NPM Cache
+
+If you ever change a Dockerfile line before the RUN npm install line, or you change your package.json or lock file, Docker will need to re-run npm install on the next build. Docker, by default, won't re-use package manager download caches like the NPM cache.
+
+If you have large `package.json` files with slow dependency installs due to large downloads, you can speed up rebuilds by enabling the BuildKit caching feature on specific directories inside your docker builds. I've seen this speed up re-builds by over 50% with large dependency trees.
+
+Remember you can't yet use this with docker-compose build, so you'd need to build your images manually with docker build and then use that image name in your docker-compose.yml
+
+To set this up for re-using the NPM download cache:
+
+- add this as the first line in your Dockerfile: # syntax = docker/dockerfile:experimental
+- Start your Dockerfile npm install line with: RUN --mount=type=cache,target=/root/.npm/\_cacache
+
+- [Sample](sample-buildkit-cache/Dockerfile)
