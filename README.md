@@ -360,3 +360,12 @@ function shutdown() {
   });
 }
 ```
+
+- An example of when the machine it's not handling SIGINT properly, we hit ctrl+c, and the app is not handling it.
+  ![](screenshots/screenshot-20210901175132.png)
+
+- Example of initializing with tini (PID 1 is tini):
+  ![](screenshots/screenshot-20210902105952.png)
+
+- Example of initializing with Docker's default tini (--init):
+  ![](screenshots/screenshot-20210902110309.png)

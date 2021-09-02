@@ -23,6 +23,8 @@ RUN npm install && npm cache clean --force
 # Copying everything to the container
 COPY . .
 
+# Wtihout this line the app would not handle shutdown properly
+# You could also use this from command line instead, if you can't use entrypoint: docker run --init assignment1 .
 ENTRYPOINT ["/sbin/tini", "--"]
 
 CMD ["node", "app.js"]
@@ -34,3 +36,9 @@ CMD ["node", "app.js"]
 # and check on http://localhost:3000
 # or if you want to check on http://localhost:
 # docker run -p 80:3000 assignment1
+# or in detach mode:
+# docker run -d -p 3000:3000 assignment1
+# to stop the container:
+# docker stop <container_id> (use docker ps to find the container id)
+# to check process running inside the docker:
+# docker top <container_id>
