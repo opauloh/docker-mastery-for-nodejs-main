@@ -254,6 +254,9 @@ CMD ["node", "./bin/www"]
 
 - We can copy `package-lock.json` with `*` which means it will copy if is there, but won't fail if it's not there.
 - This is good in case `package-lock.json` is auto generated, and we don't want to copy it.
+- [Git Ignore Generator](https://www.toptal.com/developers/gitignore)
+- [Advanced Node Project Structure](https://blog.risingstack.com/node-js-project-structure-tutorial-node-js-at-scale/)
+- [dockerignore examples](https://www.cloudbees.com/blog/leveraging-the-dockerignore-file-to-create-smaller-images)
 
 ```Dockerfile
 # without the * it would fail the build in case it's doesn't exist
@@ -461,3 +464,112 @@ To set this up for re-using the NPM download cache:
 - Start your Dockerfile npm install line with: RUN --mount=type=cache,target=/root/.npm/\_cacache
 
 - [Sample](sample-buildkit-cache/Dockerfile)
+
+## Twelve Factors App
+
+A good guideline for cloud native apps, is to follow the https://12factor.net/ methology, that was created by the creators of Heroku. Always consider Twelve Factors, when developing or designing distributed apps.
+
+When using docker we get many of the 12 factors for free, but there are things we need to do that are not out of the box:
+
+- Use Environment variables for config
+- Ensuring you're logging to `stdout` / `stderr`
+- Pin all versions of the application, even npm, docker images, and other dependencies
+- Graceful exit `SIGTERM` / `INIT`
+- Create `.dockerignore` file
+
+### [Config](https://12factor.net/config)
+
+- Store environment config in Environment Variables (env vars)
+- Docker & Compose are great for configuring environments
+- If you dealing with Legacy apps, use `CMD` or `ENTRYPOINT` script with `envsubst` to pass env vars into conf files
+- Remember, anything that you would change depending on weather is dev, test or prod, it's a environment variable.
+
+### [Logs](https://12factor.net/logs)
+
+- Apps shouldn't route, or transport logs to files, nor use 3rd party services to transport them, but to `stdout` / `stderr` (Standard Out / Standard Error)
+- You can use `console.log()` to log to stdout, and `console.error()` to log to stderr, but in case you need something more advanced, you can use: Winston, Bunyan, or Morgan, to control verbosity and log levels.
+- Winston by default, has a "Console" transport, that puts everything to `stdout`, like it should be.
+- The advantages of logging packages, is that we can control the logging for development or production, show a lot of information on development and just warning and / or error on production.
+
+## .dockerignore
+
+Prevent bloat and unneeded files from being included in the image, like:
+
+- git/
+- node_modules/ (we don't want to copy those node_modules from the host, we want to build those in the image)
+- npm-debug
+- `docker-compose*.yml` (if someone pottentially hacks into the container, and get these files, there probably shouldn't be any secrets in there, but he will have the exact design of how the entire multi-level app works)
+
+Some are not needed, but useful to have in a image, like:
+
+- Dockerfile (it isn't too risky, because it just describe that app, if someone hacked into it, they've already got that app anyway), so we can look into a container running and execute a `docker exec cat` on the Dockerfile, that is easier than using `docker history`, also it's good that for each image commit that we're making over time, the Dockerfile for when that one was built is right there, and so it's easier to compare two images.
+- README.md - it's helpful to know what the image is for, and what it's doing.
+
+## Docker
+
+- [Assignment about MTA](assignment-mta/Dockerfile) - Migrating Traditional Apps (Traditional app = Pre-Docker App) :
+
+### Docker commands and arguments
+
+- Command to build the image, -t is for tagging
+
+```bash
+docker build -t assignment-mta .
+```
+
+- command to run the docker image:
+
+```bash
+docker run assignment-mta
+```
+
+- running assignining environment variables:
+
+```bash
+docker run assignment-mta -e CHARCOAL_FACTOR=10
+```
+
+- run with interactive shell:
+
+```bash
+# -t : Allocate a pseudo-tty
+# -i : Keep STDIN open even if not attached
+docker run -it assignment-mta sh
+```
+
+- Shows the last container that ran:
+
+```bash
+docker ps -l
+```
+
+- Show logs of the last container that ran:
+
+```bash
+docker ps -l
+docker logs <container_id>
+```
+
+![](screenshots/screenshot-20210903125526.png)
+
+### To copy images from docker to local machine:
+
+```bash
+# get the container name
+docker ps
+```
+
+```bash
+# run docker cp, specifying the name, and the path to the file:
+docker cp awesome_pasteur:/app/out /home/paulo
+```
+
+### Bind mounting directory
+
+Bind mounting a directory is a great way to share files between containers or between a container and the host.
+
+- Running specifiy the directory to bind mount (`$(pwd)` is the current directory):
+
+```bash
+docker run -v $(pwd)/in:/app/in -v $(pwd)/out:/app/out assignment-mta
+```
