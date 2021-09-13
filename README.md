@@ -635,3 +635,12 @@ docker run -v $(pwd)/in:/app/in -v $(pwd)/out:/app/out assignment-mta
 
 - [Docker subscription changes](https://www.youtube.com/watch?v=1Al9lzpFzn0&ab_channel=BretFisherDockerandDevOps)
 - [Alternatives to Docker, Containerd and Lima](https://medium.com/nttlabs/containerd-and-lima-39e0b64d2a59)
+
+## Docker and node
+
+- Avoid building images with `node_modules` from host (Some packages like `node-gyp` relies on the current OS for executing binaries), so we want to execute them with our container, instead of our host. (Solution: add node_modules to `.dockerignore`)
+- It avoids the great build context (when Docker transform all files from the folder into a big file to create the image)
+  ![](screenshots/screenshot-20210913123614.png)
+- Usually it's easier to just copy the `.gitignore` to `.dockerignore`
+- After adding `node_modules` do `.dockerignore` we get a way lower build context
+  ![](screenshots/screenshot-20210913123836.png)
