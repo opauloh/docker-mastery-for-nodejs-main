@@ -44,6 +44,8 @@ services: # services is one or more container based on a single image
 
 - **Compose YAML v2 vs v3** - v2 focus on single-node, dev/test and v3 focus on multi-node and orchestration, so if not using Swarm, Kubernetes, prefer v2 - [Reference](https://github.com/docker/docker.github.io/pull/7593)
 - [Online YAML Validator](https://codebeautify.org/yaml-validator)
+- `v2` only: `depends_on`, hardware specific
+- [v2 reference](https://docs.docker.com/compose/compose-file/compose-versioning/#version-21)
 
 ### Installing docker-compose on Linux
 
@@ -107,6 +109,61 @@ So, given a node application who start a express server in port 3000, you can:
 "8080:3000" # You can access https://localhost:8080 from your browser and see the application
 "3000:8080" # You will get error, because the docker is running anything on port 8080
 ```
+
+### Docker-compose volumes
+
+- If we create a named volume, our data is kept when we run `docker-compose down`
+
+```yml
+#...
+volumes:
+  #GOOD: created a named volume so our data is kept between docker-compose ups
+  - db:/var/lib/mysql
+#...
+```
+
+### [Bind-mounting](https://docs.docker.com/storage/bind-mounts/)
+
+When you use a bind mount, a file or directory on the host machine is mounted into a container. The file or directory is referenced by its absolute path on the host machine. By contrast, when you use a volume, a new directory is created within Docker’s storage directory on the host machine, and Docker manages that directory’s contents.
+
+The file or directory does not need to exist on the Docker host already. It is created on demand if it does not yet exist. Bind mounts are very performant, but they rely on the host machine’s filesystem having a specific directory structure available. If you are developing new Docker applications, consider using named volumes instead. You can’t use Docker CLI commands to directly manage bind mounts.
+
+![](screenshots/screenshot-20210913112929.png)
+
+- Don't use host file parths: Use relative paths to bind-mount instead of absolute, (it's fine for larger app to use `../` to reference other folders)
+
+```yml
+#...
+volumes:
+  #GOOD
+  - db:/var/lib/mysql
+  #BAD
+  - /my/path/on/host:/var/lib/mysql
+#...
+```
+
+- Don't bind-mount databases (Because they won't work well across the OS boundary, specially if you're on Windows or Mac), it's not a problem for linux users because it's the same filesystem with symlinking, but for other OS they can be really slow
+- For local dev only, don't need to copy in code (don't need to keep using `docker-compose build` every time code changes, because we just want to develop and start node, we just need to rebuild if we change dependencies, like `package.json`)
+- Windows: enable drive permission for sharing the drive letter where your code is at (uncheck and check again if facing issues), also remember that permissions works differently for linux and windows
+
+![](screenshots/screenshot-20210913114110.png)
+
+- [Reference](https://www.docker.com/blog/user-guided-caching-in-docker-for-mac/) for caching tweaks around bind-mounting on windows and mac
+
+You can use the `delegated` flag to tell docker that it's okay for the container file IO, to get ahead of the host, that means (not every file IO transaction needs to be identical on host to container, which means the container wins out, and the host catch up later). Handy when doing lots of writes, like npm installs, or ts convertion
+
+```yml
+volumes:
+  - ./content:/var/lib/ghost/content:delegated
+```
+
+- [Windows caveats](https://www.udemy.com/course/docker-mastery-for-nodejs/learn/lecture/13970470#content) for when suffering very slow development
+
+### Docker-compose don'ts
+
+- Unnecessary `alias` and `container_name` (instead, just name our service what you plan to use in DNS for cross container communications)
+- Legacy: `expose` and `links`, don't need to expose anymore, because all containers on the same network are already exposed to each other (If you don't want them to see each other, just put them on different networks). And links don't need anymore because we can use `networks` to connect them.
+- Don't set defaults
 
 ## Dockerfile
 
@@ -573,3 +630,8 @@ Bind mounting a directory is a great way to share files between containers or be
 ```bash
 docker run -v $(pwd)/in:/app/in -v $(pwd)/out:/app/out assignment-mta
 ```
+
+### References
+
+- [Docker subscription changes](https://www.youtube.com/watch?v=1Al9lzpFzn0&ab_channel=BretFisherDockerandDevOps)
+- [Alternatives to Docker, Containerd and Lima](https://medium.com/nttlabs/containerd-and-lima-39e0b64d2a59)
