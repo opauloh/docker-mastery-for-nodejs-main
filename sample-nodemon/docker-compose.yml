@@ -1,8 +1,10 @@
-version: '2.4'
+version: "2.4"
 
 services:
   express:
     build: .
+    # we will add a command to run nodemon
+    command: /app/node_modules/.bin/nodemon ./bin/www
     ports:
       - 3000:3000
     volumes:
@@ -10,4 +12,7 @@ services:
     environment:
       - DEBUG=sample-express:*
       - NODE_ENV=development
-
+# install nodemon with:
+# docker-compose run express npm install nodemon --save-dev
+# build with docker-compose build
+# run with docker-compose up
