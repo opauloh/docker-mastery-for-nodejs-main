@@ -84,7 +84,8 @@ this command will do everything to stop:
 - `docker-compose ps` - list services, different from `docker ps`, it shows stopped and running containers, and in an easier format, will show ports open, and which errors might have happenend if a container has stopped
 - `docker-compose push` - push all the images in your compose file up to the registry
 - `docker-compose logs` - see all logs for all of the containers running or pass the name of the service to filter, you can use `docker-compose logs -f` to follow the logs, and let the output streamming
-- `docker-compose exec` - Execute commands inside running containers (it takes the services name, i.e `docker-compose exec web sh`)
+- `docker-compose exec` - Execute commands inside running containers (it takes the services name, i.e `docker-compose exec web sh`) (it does require the container to be running already)
+- `docker-compose run` - Start a new container and run command / shell (it does not require the container to be running already)
 
 ### Docker build workflow
 
@@ -640,7 +641,356 @@ docker run -v $(pwd)/in:/app/in -v $(pwd)/out:/app/out assignment-mta
 
 - Avoid building images with `node_modules` from host (Some packages like `node-gyp` relies on the current OS for executing binaries), so we want to execute them with our container, instead of our host. (Solution: add node_modules to `.dockerignore`)
 - It avoids the great build context (when Docker transform all files from the folder into a big file to create the image)
+
   ![](screenshots/screenshot-20210913123614.png)
+
 - Usually it's easier to just copy the `.gitignore` to `.dockerignore`
 - After adding `node_modules` do `.dockerignore` we get a way lower build context
+
   ![](screenshots/screenshot-20210913123836.png)
+
+### Solutions to node_modules in bind-mounts
+
+We can't bind-mount `node_modules` content from host on macOS/Windows (different arch), instead:
+
+- Never use `npm i` on host, run it in compose
+
+The only caveat is that you need to have `docker compose run` to get things started before you do a `docker compose up`
+
+See [Dockerfile](sample-express/Dockerfile) for reference
+
+```bash
+# Command to install dependencies using docker-compose
+docker-compose run express npm install
+# Then run the app using docker-compose
+docker-compose up
+```
+
+- Or you can move modules in image, hide modules from host
+
+Move node_modules up a directory in Dockerfile:
+
+```Dockerfile
+FROM node:10.15-slim
+
+ENV NODE_ENV=production
+
+# getting node_modules out of the app directory and moving it up
+WORKDIR /node
+
+COPY package.json package-lock*.json ./
+
+RUN npm install && npm cache clean --force
+
+WORKDIR /node/app
+
+
+COPY . .
+
+CMD ["node", "./bin/www"]
+
+
+```
+
+in order for this to work, we need to change the `docker-compose.yml` file:
+
+```yml
+version: "2.4"
+
+services:
+  express:
+    build: .
+    ports:
+      - 3000:3000
+    volumes:
+      # - .:/app
+      # changes to
+      - .:/node/app
+      # now we need to hide the node_modules from host (using empty volume to hide node_modules on bind mount)
+      # we're putting a volume inside of a bind mount, it will mean that when the container is running, the node_modules inside the app directory will be hidden from host, it will be there, but empty.
+      - /node/app/node_modules
+    environment:
+      - DEBUG=sample-express:*
+```
+
+In this case the node_modules won't be on the /node/app folder, instead it will be up one directory, and node_modules on host doesn't conflict with the node_modules in the container.
+
+![](screenshots/screenshot-20210913180258.png)
+
+### Running npm / yarn commands
+
+- [Reference](sample-strapi/Dockerfile)
+- [Reference Compose](sample-strapi/docker-compose.yml)
+
+#### Method 1 (Run)
+
+```bash
+# First install dependencies
+docker-compose run api npm i
+# Run the container
+docker-compose up
+```
+
+#### Method 2 (Exec)
+
+```bash
+# Enter in a running container
+docker-compose exec api bash
+# Run the commands
+# root@e5b8f8b8f8:~# npm i
+```
+
+### Auto Restarts
+
+- [Reference](sample-nodemon/Dockerfile)
+- [Reference Compose](sample-nodemon/docker-compose.yml)
+- [Reference Nodemon config](https://github.com/remy/nodemon#config-files)
+
+- nodemon or webpack-dev-server, etc.
+- Override Dockerfile via compose yml (Windows enable polling)
+- Can use `nodemon` for every time save file or compile (using tsc, sass, css minifier, etc)
+- Not install `nodemon` on host, but on container, as dev-dependency
+
+First, we need to install nodemon on the container:
+
+```bash
+docker-compose run express npm install nodemon --save-dev
+```
+
+Then, we update docker-compose.yml:
+
+```yml
+version: "2.4"
+
+services:
+  express:
+    build: .
+    # we will add a command to run nodemon
+    command: /app/node_modules/.bin/nodemon ./bin/www
+    ports:
+      - 3000:3000
+    volumes:
+      - .:/app
+    environment:
+      - DEBUG=sample-express:*
+      # default is production, so we set for development
+      - NODE_ENV=development
+```
+
+Then we need to update our PATH variable to include node_modules/.bin:
+
+```Dockerfile
+FROM node:10.15-slim
+
+ENV NODE_ENV=production
+
+WORKDIR /app
+
+COPY package.json package-lock*.json ./
+
+RUN npm install && npm cache clean --force
+
+# Update Path variable, so we are able to run any of the tools we installed as dev-dependencies without having to specify the full path
+ENV PATH /app/node_modules/.bin:$PATH
+
+COPY . .
+
+CMD ["node", "./bin/www"]
+
+```
+
+Lastly install nodemon with:
+
+```bash
+docker-compose run express npm install nodemon --save-dev
+# build just to make sure that the image has all the changes
+docker-compose build
+# run with
+docker-compose up
+```
+
+### Startup Order and Dependencies
+
+Problem: Multi-service apps start out of order, node might exit or cycle
+
+- Multi-container apps need:
+  - Dependenciey awareness
+  - Name resolution (DNS)
+  - Connection failure handling
+
+#### Dependency Awareness and Name Resolution
+
+`depends_on` : when "up X", start Y first
+
+- Fixes name resolution issues with "can't resolve <service_name>" (depends on ensure that at least any service that your app depends on will start first (Doesn't mean they will be ready first, just that the dns name will properly resolve))
+- compose YAML v2: works with healthchecks like a "wait for script"
+- Add v2 healthches for true "wait_for"
+
+- [Reference Compose](depends-on/docker-compose.yml) vs
+- [Reference Health Compose](depends-on/healthy-compose.yml)
+
+```yml
+version: "2.4"
+
+services:
+  frontend:
+    image: nginx
+    depends_on:
+      api:
+        # this requires a compose file version => 2.3 and < 3.0
+        # this will check for healthcheck
+        condition: service_healthy
+
+  api:
+    image: node:alpine
+    healthcheck:
+      test: curl -f http://127.0.0.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    healthcheck:
+      test: pg_isready -U postgres -h 127.0.0.1
+
+  mongo:
+    image: mongo
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/test --quiet
+
+  mysql:
+    image: mysql
+    healthcheck:
+      test: mysqladmin ping -h 127.0.0.1
+    environment:
+      - MYSQL_ALLOW_EMPTY_PASSWORD=true
+```
+
+That makes compose wait to start services until they are ready.
+
+#### Connection failure handling
+
+`restart: on-failure`
+
+- Helps slow db startup and node.js failing, but it's better to use `depends_on` instead, because it can cause CPU spike with restart cycles
+
+Solution: build connection timeout, buffer, and retries in your apps
+
+### Env variables templating
+
+```yml
+version: "3.4"
+
+x-logging: &my-logging
+  options:
+    max-size: "1m"
+    max-file: "5"
+
+services:
+  ghost:
+    image: ghost
+    logging: *my-logging
+  nginx:
+    image: nginx
+    logging: *my-logging
+```
+
+You'll notice a new section starting with an x-, which is the template, that you can then name with a preceding & and call it from anywhere in your Compose file with \* and the name. Once you start to use microservices and have hundreds or more lines in your Compose file, this will likely save you considerable time and ensure consistency of options throughout. See more details in the Docker docs.
+
+### Environment variables
+
+Eventually, you'll need a compose file to be flexible and you'll learn that you can use environment variables inside the Compose file. Note, this is not related to the YAML object environment, which you want to send to the container on startup. With the notation of `${VARNAME}`, you can have Compose resolve these values dynamically during the processing of that YAML file. The most common examples of when to use this are for setting the container image tag or published port. If your `docker-compose.yml` file looks like this:
+
+```yml
+version: "2"
+services:
+ghost:
+image: ghost:${GHOST_VERSION}
+```
+
+...then you can control the image version used from the CLI like so:
+
+```bash
+GHOST_VERSION=2 docker-compose up
+```
+
+You can also set those variables in other ways: by storing them in a `.env` file, by setting them at the CLI with export, or even setting a default in the YAML itself with `${GHOST_VERSION:-2}`. You can read more about variable substitution and various ways to set them in the Docker docs.
+
+### Control your Compose Command Scope
+
+We can have multiple compose files and use `docker-compose -f custom-compose.yml up` to execute them.
+
+We can also combine many Compose files in a layered override approach. Each one listed in the CLI will override the settings of the previous (processed left to right)—e.g., `docker-compose -f docker-compose.yml -f docker-override.yml`
+
+If you manually change the project name, you can use the same Compose file in multiple scopes so they don't "clash." Clashing happens when Compose tries to control a container that already has another one running with the same name. You likely have noticed that containers, networks, and other objects that Compose creates have a naming standard. The standard comprises three parts: projectname_servicename_index. We can change the projectname, which again, defaults to the directory name with a -p at the command line. So if we had a docker-compose.yml file like this:
+
+```yml
+version: "2"
+services:
+ghost:
+image: ghost:${GHOST_VERSION}
+ports: ${GHOST_PORT}:2368
+```
+
+Then we had it in a directory named app1 and we started the ghost app with inline environment variables like this:
+
+```bash
+app1> GHOST_VERSION=2 GHOST_PORT=8080 docker-compose up
+```
+
+We'd see a container running named this: `app1_ghost_1`
+
+Now, if we want to run an older version of ghost side-by-side at the same time, we could do that with this same Compose file, as long as we change two things. First, we need to change the project name to ensure the container name will be different and not conflict with our first one. Second, we need to change the published port so they don't clash with any other running containers.
+
+```bash
+app1> GHOST_VERSION=1 GHOST_PORT=9090 docker-compose -p app2 up
+```
+
+If I check running containers with a docker container ls, I see:
+
+```bash
+app1_ghost_1 running ghost:2 on port 8080
+app2_ghost_1 running ghost:1 on port 9090
+```
+
+Now you could pull up two browser windows and browse both 8080 and 9090 with two separate ghost versions (and databases) running side by side.
+
+## Microservices
+
+Problem: many HTTP endpoints, many ports
+Solution: Nginx/HAProxy/Traefik for host header routing + wildcard localhost domain
+
+Problem: CORS failtures in dev
+Solution: Proxy with \* header
+
+Problem: HTTPS locally
+Solution: Create [local proxy certs](https://letsencrypt.org/docs/certificates-for-localhost/)
+
+Problem: Multiple endpoints with unique DNS
+Solution:
+
+- Use x.localhost, y.localhost in Chrome with proxy
+- or use wildcard domain like `*.vcap.me` (owned by vmware) or xip.io
+- or use dnsmasq on macOS/linux
+- or manually edit hosts file (but is tedious, not ideal workflow)
+
+- [Reference Nginx](sample-local-proxy/nginx-proxy.yml)
+- [Reference Traefik](sample-local-proxy/traefik-proxy.yml)
+- https://github.com/docker-solr/docker-solr/issues/182
+- https://www.stevenrombauts.be/2018/01/use-dnsmasq-instead-of-etc-hosts/
+
+### Vs Code, node and Typescript
+
+Debugging works when we enable in remote via TCP (defaults 9229)
+
+- [Reference TS compose](typescript/docker-compose.yml)
+- [Reference TS nodemon](typescript/nodemon.json)
+- [Reference TS Dockerfile multistage](typescript/Dockerfile)
+- [Reference TSconfig](typescript/tsconfig.json)
