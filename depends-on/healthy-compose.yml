@@ -1,14 +1,14 @@
-version: '2.4'
+version: "2.4"
 
 services:
-
   frontend:
     image: nginx
     depends_on:
       api:
         # this requires a compose file version => 2.3 and < 3.0
+        # this will check for healthcheck
         condition: service_healthy
-        
+
   api:
     image: node:alpine
     healthcheck:
