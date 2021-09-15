@@ -988,7 +988,7 @@ Solution:
 
 ### Vs Code, node and Typescript
 
-Debugging works when we enable in remote via TCP (defaults 9229)
+Debugging works when we enable in remote via TCP (defaults 9229), go to chrome://inspect/#devices to see on chrome
 
 - [Reference TS compose](typescript/docker-compose.yml)
 - [Reference TS nodemon](typescript/nodemon.json)

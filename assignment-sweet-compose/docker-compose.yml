@@ -1,6 +1,25 @@
 version: "2.4"
 
 services:
+  proxy:
+    image: traefik:1.7-alpine
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "80:80"
+    command:
+      - --docker
+      - --docker.domain=traefik
+      - --docker.watch
+      - --api
+      - --defaultentrypoints=http,https
+    labels:
+      - traefik.port=80
+      - traefik.frontend.rule=Host:traefik.localhost
+    networks:
+      - frontend
+      - backend
+
   redis:
     image: redis:alpine
     networks:
@@ -9,7 +28,7 @@ services:
       test: redis-cli ping
 
   db:
-    image: postgres:9.6redis
+    image: postgres:9.6
     volumes:
       - db-data:/var/lib/postgresql/data
     environment:
@@ -17,6 +36,7 @@ services:
     networks:
       - backend
     healthcheck:
+      # Pay attention to the user, if you don't have it, don't need to specify it, otherwise it will show fatal error on the logs
       test: pg_isready -U postgres -h 127.0.0.1
 
   vote:
@@ -27,22 +47,35 @@ services:
       - frontend
     depends_on:
       redis:
+        # we need condition, because just depends_on alone doesn't cause startup delay
         condition: service_healthy
+    labels:
+      - traefik.port=80
+      - traefik.frontend.rule=Host:vote.localhost
 
   result:
     build:
+      # build context is to specify the path to build the custom image
       context: result
+    # an way to know if it's working, it will show debugging is enabled when we launch the app
+    command: nodemon --inspect=0.0.0.0:9229
+    environment:
+      - NODE_ENV=development
+    # we can leave ports here, for better troubleshooting
     ports:
       - "5001:80"
     networks:
       - backend
     depends_on:
       db:
+        # we need condition, because just depends_on alone doesn't cause startup delay
         condition: service_healthy
     volumes:
-      - .:/result/app
-    environment:
-      - NODE_ENV=development
+      # the app in the result subdirectory, and it will have an app folder
+      - ./result:/app
+    labels:
+      - traefik.port=80
+      - traefik.frontend.rule=Host:result.localhost
 
   worker:
     image: bretfisher/examplevotingapp_worker
@@ -51,8 +84,10 @@ services:
       - backend
     depends_on:
       db:
+        # we need condition, because just depends_on alone doesn't cause startup delay
         condition: service_healthy
       redis:
+        # we need condition, because just depends_on alone doesn't cause startup delay
         condition: service_healthy
 
 networks:

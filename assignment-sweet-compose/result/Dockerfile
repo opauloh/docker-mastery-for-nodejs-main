@@ -1,7 +1,8 @@
-FROM node:8.16-alpine
+FROM node:10-alpine3.11
 
 WORKDIR /app
 
+# if nodemon wasn't installed, and we dindn't have access to install it, we could install via compose
 RUN npm install -g nodemon
 COPY package*.json /app/
 RUN npm install \
