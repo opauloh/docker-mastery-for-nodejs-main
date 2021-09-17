@@ -60,7 +60,7 @@ ENV NODE_VERSION 16.8.0
 
 
 # from the terminal, attempting to run:
-# docker build -t centos-node
+# docker build -t centos-node .
 
 # First error:  dpkg: command not found
 # That's because we are using a centos image, so we won't have the dpkg command
