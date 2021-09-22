@@ -131,7 +131,7 @@ The file or directory does not need to exist on the Docker host already. It is c
 
 ![](screenshots/screenshot-20210913112929.png)
 
-- Don't use host file parths: Use relative paths to bind-mount instead of absolute, (it's fine for larger app to use `../` to reference other folders)
+- Don't use host file paths: Use relative paths to bind-mount instead of absolute, (it's fine for larger app to use `../` to reference other folders)
 
 ```yml
 #...
@@ -307,6 +307,7 @@ CMD ["node", "./bin/www"]
 
 - To avoid that we usually just have a copy for package.json and package-lock.json, and then we run npm install, and then we copy in . . (that means everything else). This will save a lot of time.
 - `npm install --production` will install only the production dependencies, and not the dev dependencies.
+- use `npm ci` to build from the package-lock.json file, instead of using the `package.json`, also it will build faster. [Sample at](multi-stage-deps/Dockerfile)
 
 ### Tips
 
@@ -343,6 +344,109 @@ RUN apt-get install httping
 COPY . .
 
 CMD ["node", "./bin/www"]
+```
+
+### Dockerfile Documentation
+
+- FROM stage, document why it's needed.
+- COPY - don't document (it's obvious)
+- RUN - when it's complex, document it.
+- RUN `npm config list` (to log out the npm config)
+- Add LABELS
+- - Labels has OCI standards (LABEL org.opencontainers.image.<key>)
+- - Can accept ARG to be dynamic, (like build date or git commit)
+- - [Sample](dockerfile-labels/Dockerfile)
+- - [Spec](https://github.com/opencontainers/image-spec/blob/main/annotations.md)
+- - [Reference](https://docs.docker.com/engine/reference/builder/#label)
+- - [Reference Objects](https://docs.docker.com/config/labels-custom-metadata/)
+- Document compose file
+- - Document overrides (like custom CMD, or yml overrides)
+- - Document why a volume is needed
+- - Template blocks at top
+
+### Tests
+
+- `RUN npm test` in a specific build stage
+- Also you can run linting commands
+- Only run unit tests in build (Other tests are more a job for docker-compose)
+- Don't run test by default
+- Locally, you should be able to: run `docker-compose run node npm test`
+- [Sample](multi-stage-test/Dockerfile)
+- [Unit test ref](https://blog.risingstack.com/node-hero-node-js-unit-testing-tutorial/)
+- [docker hub advanced builds](https://docs.docker.com/docker-hub/builds/advanced/)
+- If you run tests they will got cached, if you want to force run again without cache, you can use:
+
+```bash
+docker build -t testnode --target=teste --no-cache .
+```
+
+### Security Scanning
+
+- in the test stage or in a dedicated stage
+- or run once image is built with CI
+- only report at first, no failing (most images have at least one CVE vulnerability)
+- Consider `RUN npm audit` - a great feature of npm that will make sure that we don't have any known security vulnerabilities with our dependencies.
+- [Reference](multi-stage-scanning/Dockerfile)
+
+```Dockerfile
+## Stage 5 (security scanning and audit)
+FROM test as audit
+
+RUN npm audit
+
+# aqua microscanner, which needs a token for API access
+# note this isn't super secret, so we'll use an ARG here
+# https://github.com/aquasecurity/microscanner
+ARG MICROSCANNER_TOKEN
+ADD https://get.aquasec.com/microscanner /
+RUN chmod +x /microscanner
+RUN apk add --no-cache ca-certificates && update-ca-certificates
+RUN /microscanner $MICROSCANNER_TOKEN --continue-on-failure
+```
+
+- [Reference latest confusion](https://blog.container-solutions.com/docker-latest-confusion)
+- [Reference Docker scanning](https://sysdig.com/blog/docker-image-scanning/)
+- [Reference Scanners comparison](https://kubedex.com/follow-up-container-scanning-comparison/)
+- [Reference Scanning](https://kubedex.com/container-scanning/)
+- [Reference npm best practices](https://snyk.io/blog/ten-npm-security-best-practices/)
+
+### CI / CD Automated builds
+
+- Have CI builds on important branches (master, release, etc)
+- Push to registry once build / tests pass (automatic)
+- Lint Dockerfile and Compose/Stack files (YAML Linting, Docker linting)
+- Use `docker-compose run` or `--exit-code-from` for proper exit codes (with exit code from you know which container returned the error)
+- Dockerhub can also work as a CI solution
+- Also remember that `<name>:latest` is only a convention, use it for local easy acess to current release, usually it's a good idea to follow your release version or semver (so you don't repeat tags)
+
+- [Reference CI exit codes](https://stackoverflow.com/questions/29568352/using-docker-compose-with-ci-how-to-deal-with-exit-codes-and-daemonized-linked)
+- [Reference Hadolinter](https://github.com/hadolint/hadolint)
+- [Reference Dockerfilelint](https://github.com/replicatedhq/dockerfilelint)
+- [Reference Dockerhub](https://docs.docker.com/docker-hub/builds/automated-testing/)
+
+### Dockerfile Healthchecks
+
+- Always include `HEALTCHECK`
+- Docker run and docker-compose: info only
+- Docker Swarm: key for uptime and rolling updates
+- Note that we want healthchecks to be isolated and not depend on other services (ie databases)
+
+- [Sample](healthchecks/Dockerfile)
+
+```Dockerfile
+# option 1, using curl to GET the default app url
+# NOTE: ensure curl is installed in image
+HEALTHCHECK --interval=5m --timeout=3s \
+  CMD curl -f http://localhost/ || exit 1
+
+# option 2, using curl to GET a custom url with app logic
+# NOTE: ensure curl is installed in image
+HEALTHCHECK CMD curl -f http://localhost/healthz || exit 1
+
+# option 3, a custom code healthcheck that could
+# do a lot more things then a simple curl
+# or simply avoid needing curl to begin with
+HEALTHCHECK --interval=30s CMD node hc.js
 ```
 
 ### Node process management
@@ -609,6 +713,12 @@ docker logs <container_id>
 ```
 
 ![](screenshots/screenshot-20210903125526.png)
+
+- Remove dandling containers:
+
+```bash
+docker rmi $(docker images -f "dangling=true" -q)
+```
 
 ### To copy images from docker to local machine:
 

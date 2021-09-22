@@ -83,6 +83,8 @@ RUN chmod +x /microscanner
 RUN apk add --no-cache ca-certificates && update-ca-certificates
 RUN /microscanner $MICROSCANNER_TOKEN --continue-on-failure
 
+# Command to build the audit image
+# docker build -t auditnode --target=audit --build-arg MICROSCANNER_TOKEN=$MICROSCANNER .
 
 ## Stage 6 (default, production)
 # this will run by default if you don't include a target
