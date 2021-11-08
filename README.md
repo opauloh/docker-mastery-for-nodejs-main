@@ -311,7 +311,10 @@ CMD ["node", "./bin/www"]
 
 ### Tips
 
+- Low ports (80, 90, etc) requires user root to run (by default), ports like 3000 or 4000 works, so intead of using 80, use 3000, or 8080, and so on.
+- When building multistage environments, it's tempting to use npm remove dev dependencies, but don't use it because it will increase the size of the image (Even if you check after the image is done the size is small inside the container, but the image will be greater because it will consider all the space it needs to store the dependencies). This is called image bloat, where the image is bigger than it needs to be, because the final image is small, but the intermediate layers are big.
 - We can copy `package-lock.json` with `*` which means it will copy if is there, but won't fail if it's not there.
+- When doing the COPY command with the from, it doesn't necessarily obey the working directory, so we want to be more literal in the copy command: `COPY --from=pre-prod /app /app`
 - This is good in case `package-lock.json` is auto generated, and we don't want to copy it.
 - [Git Ignore Generator](https://www.toptal.com/developers/gitignore)
 - [Advanced Node Project Structure](https://blog.risingstack.com/node-js-project-structure-tutorial-node-js-at-scale/)
