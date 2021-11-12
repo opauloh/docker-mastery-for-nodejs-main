@@ -21,6 +21,9 @@ Because Alpine Linux is designed to run from RAM, package management involves tw
 - many `docker` commands == `docker-compose`
 - `docker-compose` CLI and YAML versions differ
 
+> **Note:** Don't use `docker-compose` for production, use `docker` instead, `docker-compose` is design for testing and development and doesn't concern with productions things like healthchecks, rolling updates or uptime. Use Swarm for that, even if you are running single server.
+> Reference: https://github.com/BretFisher/ama/issues/8
+
 ### YAML
 
 yml is the extension for YAML, a common configuration file format, it uses:
@@ -311,6 +314,8 @@ CMD ["node", "./bin/www"]
 
 ### Tips
 
+- Node is single threaded by default, which means that by default, it won't take advantage of servers with multiple CPUs. This can be solved with containers replicas. (start with 1-2 replicas per CPU).
+- Don't use multiple replicas in unit tests in CI, because it's harder to test. For integration tests it's good to run with multiple replicas because we can catch errors in our application that only happens when using multiple replicas.
 - Low ports (80, 90, etc) requires user root to run (by default), ports like 3000 or 4000 works, so intead of using 80, use 3000, or 8080, and so on.
 - When building multistage environments, it's tempting to use npm remove dev dependencies, but don't use it because it will increase the size of the image (Even if you check after the image is done the size is small inside the container, but the image will be greater because it will consider all the space it needs to store the dependencies). This is called image bloat, where the image is bigger than it needs to be, because the final image is small, but the intermediate layers are big.
 - We can copy `package-lock.json` with `*` which means it will copy if is there, but won't fail if it's not there.
@@ -348,6 +353,43 @@ COPY . .
 
 CMD ["node", "./bin/www"]
 ```
+
+### Node.js With Proxies
+
+- Common: many HTTP containers need to listen on 80/443
+- Nginx and HAProxy are traditional tools that have lots of options
+- Traefik is the new one, and it's a lot more powerful
+
+![](screenshots/img-20211112155602.png)
+
+![](screenshots/screenshot-20211112155710.png)
+
+![](screenshots/load-balancer-20211112155915.png)
+
+Reference: https://github.com/BretFisher/dogvscat
+
+### Container replacement and connection management
+
+- Add SIGTERM code to all node.js apps - [Reference](./sample-graceful-shutdown/sample.js)
+- use Loadbalancer to manage connections, also known as Ingress when talking about orchestration
+- Kubernets / Swarm use healthchecks to manage connections
+- **Tips:**
+- - [Give shutdown](https://blog.risingstack.com/graceful-shutdown-node-js-kubernetes/) waits longer than your longer HTTP long polling (i.e polling every 10 seconds or so)
+- - Use [stoppable](https://github.com/hunterloftis/stoppable) to track open connections
+
+### Node.js with orchestration
+
+- Orchestration are for multi-container with single image
+- startup "ready" state: healthchecks, loadbalancer, etc
+- multi-container client state sharing (don't use in-memory state, i.e use readis instead)
+- shutdown cleanup: re-connect clients, close DB, fail readiness
+
+- [Example](./sample-result-orchestration/Dockerfile)
+- [Redis Reference](https://github.com/socketio/socket.io-redis-adapter)
+
+- Tip: be prepared to consider websockets when applying graceful shutdown
+
+- [Swarm Example](./sample-swarm/stack-vote.yml), with redis, postgres, traeffik and stoppable (the deploy section is specific to swarm)
 
 ### Dockerfile Documentation
 
