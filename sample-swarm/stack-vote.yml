@@ -70,6 +70,7 @@ services:
       - backend
       - traefik-proxy
     stop_grace_period: 5m
+    # this section is specific to swarm
     deploy:
       replicas: 2
       labels: [APP=VOTING]
