@@ -1149,3 +1149,36 @@ Debugging works when we enable in remote via TCP (defaults 9229), go to chrome:/
 - [Reference TS nodemon](typescript/nodemon.json)
 - [Reference TS Dockerfile multistage](typescript/Dockerfile)
 - [Reference TSconfig](typescript/tsconfig.json)
+
+### ARM + Docker for node
+
+- ARM processor are used everywhere
+- April 2019: Docker + ARM partnership
+- Docker and Node works great on ARM
+
+#### Run Node ARM Containers for DEV
+
+- Tip: Change the `FROM` image to `arm64v8/node:<tag>`, this forces macOS/Win to run ARM, by using QEMU "processor emulation"
+- Search on [Dockerhub](https://hub.docker.com/u/arm64v8) for ARM64V8 images
+- Use the command `docker image inspect [imagename, i.e arm64v8/node:10-alpine] | grep Arch` to know the architecture of a image
+- Be aware that arm64 is completely different from amd64
+
+Difference between processors:
+
+- **Intel** is the most popular and well-known maker of processors. Manufacturers like Dell, Apple, Samsung and HP all use Intel processors in their computers. Intel processors are the most stable and offer the best all-round performance. The current i3, i5 and i7 models represent entry, middle and high level hardware.
+- **AMD** is Intel’s biggest competitor, offering processors that are similar to Intel’s, but at a, for the most part, cheaper price. The majority of computer manufacturers, except for Apple, also offer products with AMD processors. AMD’s Athlon processors are budget models while Phenom and FX are mainstream and high level respectively.
+- **ARM** processors are generally used in smartphones, mobile devices and tablets. Apple’s iPhone and iPad; Samsung’s Galaxy line and HTC devices all use some form of ARM processor in their mobile devices. A rule of thumb is, if it doesn’t have AMD or Intel in the name, it’s most likely an ARM processor.
+
+#### Run Node ARM Containers for PROD
+
+- AWS A1 Instances (Graviton Processors)
+- Test your IoT/Embedded code (drones, robots, etc)
+
+Process:
+
+- Build your image
+- Push to dockerhub or similar (i.e: gpc container registry)
+- Login into your instance (aws or other)
+- Just `docker run -p 3000:3000 -d [imagename]`
+
+MultiArch images: images that run on different architectures without having to specify it in the `FROM` line, they work the same
